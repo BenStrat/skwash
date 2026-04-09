@@ -1,30 +1,36 @@
-import { redirect } from 'next/navigation';
-import { Sidebar } from '@/components/layout/sidebar';
-import { TopBar } from '@/components/layout/top-bar';
-import { hasRequiredAppEnv } from '@/lib/env';
-import { createClient } from '@/lib/supabase/server';
+import { redirect } from "next/navigation";
+import { SetupGuide } from "@/components/layout/setup-guide";
+import { isAppSetupError } from "@/lib/app-setup";
+import { hasRequiredAppEnv } from "@/lib/env";
+import { getAppUserContext } from "@/lib/app-user";
 
-export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
+export default async function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   if (!hasRequiredAppEnv) {
-    redirect('/');
+    redirect("/");
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
+  let user;
+  try {
+    user = await getAppUserContext();
+  } catch (error) {
+    if (isAppSetupError(error)) {
+      return (
+        <main className="mx-auto flex min-h-screen w-full max-w-3xl items-center px-4 py-12">
+          <SetupGuide mode="database" />
+        </main>
+      );
+    }
+
+    throw error;
+  }
 
   if (!user) {
-    redirect('/login');
+    redirect("/login");
   }
 
-  return (
-    <div className="flex min-h-screen">
-      <Sidebar />
-      <div className="flex flex-1 flex-col">
-        <TopBar email={user.email ?? 'Unknown user'} />
-        <main className="flex-1 p-6">{children}</main>
-      </div>
-    </div>
-  );
+  return children;
 }

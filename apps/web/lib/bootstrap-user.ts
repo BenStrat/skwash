@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { getAppSetupError } from '@/lib/app-setup';
 import type { Database } from '@skwash/db';
 
 type OrganisationInsert = Database['public']['Tables']['organisations']['Insert'];
@@ -31,7 +32,11 @@ export async function bootstrapUser() {
     .maybeSingle();
 
   if (existingError) {
-    return { error: existingError.message, status: 500 as const };
+    const setupError = getAppSetupError(existingError);
+    return {
+      error: setupError?.message ?? existingError.message,
+      status: setupError?.status ?? 500
+    };
   }
 
   if (existingUser) {
@@ -57,7 +62,11 @@ export async function bootstrapUser() {
   const orgError = createOrgResult.error;
 
   if (orgError || !org) {
-    return { error: orgError?.message ?? 'Unable to create organisation', status: 500 as const };
+    const setupError = getAppSetupError(orgError);
+    return {
+      error: setupError?.message ?? orgError?.message ?? 'Unable to create organisation',
+      status: setupError?.status ?? 500
+    };
   }
 
   const userToInsert: UserInsert = {
@@ -69,7 +78,11 @@ export async function bootstrapUser() {
   const { error: userError } = await supabase.from('users').insert(userToInsert as never);
 
   if (userError) {
-    return { error: userError.message, status: 500 as const };
+    const setupError = getAppSetupError(userError);
+    return {
+      error: setupError?.message ?? userError.message,
+      status: setupError?.status ?? 500
+    };
   }
 
   return { ok: true as const };

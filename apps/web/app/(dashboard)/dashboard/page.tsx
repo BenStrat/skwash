@@ -1,8 +1,19 @@
-export default function DashboardPage() {
-  return (
-    <section className="rounded-xl border border-dashed bg-white p-8">
-      <h1 className="text-xl font-semibold">Dashboard</h1>
-      <p className="mt-2 text-sm text-zinc-600">Authenticated shell is ready. Project features are intentionally blank in Phase 0.</p>
-    </section>
-  );
+import { ProjectDashboard } from '@/components/dashboard/project-dashboard';
+import { getAppUserContext } from '@/lib/app-user';
+import { listProjects } from '@/lib/projects/service';
+
+export default async function DashboardPage() {
+  const user = await getAppUserContext();
+  const result = await listProjects({ sort: 'updated' });
+
+  if ('error' in result) {
+    return (
+      <section className="rounded-3xl border border-rose-200 bg-rose-50 p-6 text-rose-900 shadow-sm">
+        <h1 className="text-2xl font-semibold">Dashboard unavailable</h1>
+        <p className="mt-2 text-sm leading-6">{result.error}</p>
+      </section>
+    );
+  }
+
+  return <ProjectDashboard initialProjects={result.projects} userName={user?.displayName ?? 'Projects'} />;
 }
