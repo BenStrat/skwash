@@ -1,5 +1,5 @@
 {
-  "extends": "../../packages/config-ts/base.json",
+  "extends": "@skwash/config-ts/base.json",
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
