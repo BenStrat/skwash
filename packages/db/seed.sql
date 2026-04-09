@@ -1,0 +1,3 @@
+-- Seed scaffolding for local development.
+-- Example:
+-- insert into public.organisations (name, slug) values ('Acme', 'acme');

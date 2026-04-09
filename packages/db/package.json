@@ -1,0 +1,19 @@
+{
+  "name": "@skwash/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "gen:types": "supabase gen types typescript --project-id $SUPABASE_PROJECT_ID --schema public > src/types.ts",
+    "seed": "echo 'Add seeding logic in packages/db/seed.sql or scripted inserts'"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.5.2",
+    "@supabase/supabase-js": "^2.49.8"
+  },
+  "devDependencies": {
+    "supabase": "^2.26.8"
+  }
+}
