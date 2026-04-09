@@ -5,7 +5,7 @@ Phase 0 monorepo scaffold for auth + database + dashboard shell.
 ## Stack
 - Turborepo monorepo
 - Next.js 15 + React 19 + TypeScript strict + Tailwind CSS 4
-- Supabase Auth (email magic link)
+- Supabase Auth (email + password)
 - Vercel deployment target
 
 ## Local setup
@@ -18,12 +18,14 @@ Phase 0 monorepo scaffold for auth + database + dashboard shell.
    cp .env.example .env.local
    ```
 3. Fill Supabase values in `.env.local`.
+   Use `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` from your Supabase project's API settings.
+   Make sure Email auth with passwords is enabled in Supabase under `Authentication -> Providers -> Email`.
 4. Run migrations in your Supabase project (SQL in `packages/db/migrations/001_initial.sql`).
 5. Start app:
    ```bash
    pnpm dev
    ```
-6. Open `http://localhost:3000` and sign up with email magic link.
+6. Open `http://localhost:3000` and sign up with email and password.
 
 ## Database types workflow
 Regenerate TypeScript DB types after schema updates:
@@ -34,5 +36,5 @@ pnpm --filter @skwash/db gen:types
 
 ## Deployment (Vercel)
 - Import repository in Vercel.
-- Set `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_SUPABASE_URL`, and `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+- Set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
 - Build command is configured in `vercel.json`.

@@ -1,4 +1,9 @@
 import { createClient } from '@/lib/supabase/server';
+import type { Database } from '@skwash/db';
+
+type OrganisationInsert = Database['public']['Tables']['organisations']['Insert'];
+type OrganisationRow = Database['public']['Tables']['organisations']['Row'];
+type UserInsert = Database['public']['Tables']['users']['Insert'];
 
 function slugify(value: string) {
   return value
@@ -36,23 +41,32 @@ export async function bootstrapUser() {
   const emailPrefix = user.email?.split('@')[0] ?? 'team';
   const baseSlug = `${slugify(emailPrefix)}-${user.id.slice(0, 8)}`;
   const orgName = `${emailPrefix}'s Workspace`;
+  const organisationToInsert: OrganisationInsert = {
+    name: orgName,
+    slug: baseSlug
+  };
 
-  const { data: org, error: orgError } = await supabase
+  // Supabase loses the insert payload type through our SSR wrapper, so we keep
+  // the row shape explicit here and cast only at the SDK boundary.
+  const createOrgResult = await supabase
     .from('organisations')
-    .insert({ name: orgName, slug: baseSlug })
+    .insert(organisationToInsert as never)
     .select('id')
     .single();
+  const org = createOrgResult.data as Pick<OrganisationRow, 'id'> | null;
+  const orgError = createOrgResult.error;
 
   if (orgError || !org) {
     return { error: orgError?.message ?? 'Unable to create organisation', status: 500 as const };
   }
 
-  const { error: userError } = await supabase.from('users').insert({
+  const userToInsert: UserInsert = {
     id: user.id,
     org_id: org.id,
     role: 'owner',
     display_name: user.user_metadata?.display_name ?? emailPrefix
-  });
+  };
+  const { error: userError } = await supabase.from('users').insert(userToInsert as never);
 
   if (userError) {
     return { error: userError.message, status: 500 as const };

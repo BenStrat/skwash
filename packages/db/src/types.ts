@@ -38,8 +38,17 @@ export type Database = {
         Relationships: [];
       };
     };
+    Views: {
+      [_ in never]: never;
+    };
+    Functions: {
+      [_ in never]: never;
+    };
     Enums: {
       user_role: 'owner' | 'admin' | 'member' | 'viewer';
+    };
+    CompositeTypes: {
+      [_ in never]: never;
     };
   };
 };
