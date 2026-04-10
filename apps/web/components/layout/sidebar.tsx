@@ -44,6 +44,16 @@ export function Sidebar({
         className,
       )}
     >
+      {headerSlot ? (
+        <div
+          className={cn(
+            showNavigation ? "mb-4" : "",
+            headerClassName,
+          )}
+        >
+          {headerSlot}
+        </div>
+      ) : null}
 
       {showNavigation ? (
         <nav className="space-y-2">

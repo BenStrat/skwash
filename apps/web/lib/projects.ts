@@ -2,6 +2,11 @@ import type { Database } from '@skwash/db';
 
 export type ProjectRow = Database['public']['Tables']['projects']['Row'];
 export type ReviewItemRow = Database['public']['Tables']['review_items']['Row'];
+export type ProjectViewportReviewCounts = {
+  desktop: number;
+  tablet: number;
+  mobile: number;
+};
 
 export type ProjectListItem = Pick<
   ProjectRow,
@@ -12,6 +17,8 @@ export type ProjectDetail = Pick<
   ProjectRow,
   'id' | 'org_id' | 'name' | 'base_url' | 'status' | 'review_status' | 'created_at' | 'updated_at'
 > & {
+  reviewer_name: string | null;
+  viewport_review_counts: ProjectViewportReviewCounts;
   review_items: ReviewItemRow[];
 };
 

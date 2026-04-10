@@ -25,7 +25,9 @@ export function ProjectDashboard({ initialProjects, userName }: ProjectDashboard
     handleComposerSubmit,
     handleCreateSubmit,
     handleDelete,
+    isCreating,
     isPending,
+    isSavingComposer,
     openEditComposer,
     setDraftUrl,
     setActiveProjectSort,
@@ -37,7 +39,7 @@ export function ProjectDashboard({ initialProjects, userName }: ProjectDashboard
     <section className="space-y-0">
       <ProjectUrlForm
         draftUrl={draftUrl}
-        isPending={isPending}
+        isCreating={isCreating}
         onDraftUrlChange={setDraftUrl}
         onSubmit={handleCreateSubmit}
       />
@@ -65,7 +67,7 @@ export function ProjectDashboard({ initialProjects, userName }: ProjectDashboard
 
       <ProjectComposerDialog
         composer={composer}
-        isPending={isPending}
+        isPending={isSavingComposer || isPending}
         onBaseUrlChange={updateComposerBaseUrl}
         onClose={closeComposer}
         onNameChange={updateComposerName}

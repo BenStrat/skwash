@@ -29,12 +29,8 @@ export function ProjectComposerDialog({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/45 p-4">
       <div className="w-full max-w-xl rounded-[2rem] border border-zinc-200 bg-white p-6 shadow-2xl">
         <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-zinc-500">
-            {composer.mode === 'create' ? 'Create project' : 'Edit project'}
-          </p>
-          <h2 className="text-2xl font-semibold text-zinc-950">
-            {composer.mode === 'create' ? 'Name the project and save the base URL.' : 'Update the project details.'}
-          </h2>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-zinc-500">Edit project</p>
+          <h2 className="text-2xl font-semibold text-zinc-950">Update the project details.</h2>
           <p className="text-sm text-zinc-600">
             Phase 1 keeps one review item per project, so changing the base URL also updates the linked review item.
           </p>
@@ -69,7 +65,7 @@ export function ProjectComposerDialog({
               Cancel
             </Button>
             <Button disabled={isPending} type="submit">
-              {isPending ? 'Saving...' : composer.mode === 'create' ? 'Create and open canvas' : 'Save changes'}
+              {isPending ? 'Saving...' : 'Save changes'}
             </Button>
           </div>
         </form>

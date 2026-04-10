@@ -3,6 +3,7 @@ import 'server-only';
 import { createClient } from '@/lib/supabase/server';
 import type { Database } from '@skwash/db';
 import { z } from 'zod';
+import type { ProjectViewportReviewCounts } from '@/lib/projects';
 import { getAppSetupError, getErrorMessage } from '@/lib/app-setup';
 import { isUnauthorizedError, requireAppUserContext } from '@/lib/app-user';
 
@@ -35,7 +36,12 @@ export const projectUpdateBodySchema = z
 type ProjectRow = Database['public']['Tables']['projects']['Row'];
 type ProjectInsert = Database['public']['Tables']['projects']['Insert'];
 type ProjectUpdate = Database['public']['Tables']['projects']['Update'];
+type UserRow = Database['public']['Tables']['users']['Row'];
 type ReviewItemRow = Database['public']['Tables']['review_items']['Row'];
+type ReviewRoundRow = Database['public']['Tables']['review_rounds']['Row'];
+type AnnotationRow = Database['public']['Tables']['annotations']['Row'];
+type CommentRow = Database['public']['Tables']['comments']['Row'];
+type ReviewerNoteRow = Database['public']['Tables']['reviewer_notes']['Row'];
 type QueryError = {
   message: string;
 };
@@ -49,6 +55,8 @@ type MultiResult<T> = {
 };
 
 export type ProjectRecord = ProjectRow & {
+  reviewer_name: string | null;
+  viewport_review_counts: ProjectViewportReviewCounts;
   review_items: ReviewItemRow[];
   domain: string;
 };
@@ -91,9 +99,20 @@ function deriveReviewItemTitle(baseUrl: string) {
   return `${parsed.hostname}${pathname}`;
 }
 
-function toProjectRecord(project: ProjectRow, reviewItems: ReviewItemRow[]): ProjectRecord {
+function toProjectRecord(
+  project: ProjectRow,
+  reviewItems: ReviewItemRow[],
+  reviewerName: string | null = null,
+  viewportReviewCounts: ProjectViewportReviewCounts = {
+    desktop: 0,
+    tablet: 0,
+    mobile: 0
+  }
+): ProjectRecord {
   return {
     ...project,
+    reviewer_name: reviewerName,
+    viewport_review_counts: viewportReviewCounts,
     review_items: reviewItems,
     domain: new URL(project.base_url).hostname
   };
@@ -158,6 +177,167 @@ async function loadProjectReviewItems(supabase: Awaited<ReturnType<typeof create
   }
 
   return grouped;
+}
+
+async function loadReviewerDisplayName(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  reviewerId: string
+) {
+  const { data, error } = ((await supabase
+    .from('users')
+    .select('display_name')
+    .eq('id', reviewerId)
+    .maybeSingle()) as unknown) as MaybeSingleResult<Pick<UserRow, 'display_name'>>;
+
+  if (error) {
+    return toQueryFailure(error, 'Unable to load the reviewer profile.');
+  }
+
+  return data?.display_name ?? null;
+}
+
+async function loadProjectReviewerName(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  reviewItemIds: string[]
+) {
+  if (reviewItemIds.length === 0) {
+    return null;
+  }
+
+  const { data: annotations, error: annotationsError } = ((await supabase
+    .from('annotations')
+    .select('id, author_id, created_at')
+    .in('review_item_id', reviewItemIds)
+    .order('created_at', { ascending: false })) as unknown) as MultiResult<
+    Pick<AnnotationRow, 'id' | 'author_id' | 'created_at'>
+  >;
+
+  if (annotationsError) {
+    return toQueryFailure(annotationsError, 'Unable to load project annotations.');
+  }
+
+  const annotationIds = (annotations ?? []).map((annotation) => annotation.id);
+
+  const { data: comments, error: commentsError } =
+    annotationIds.length === 0
+      ? { data: [], error: null }
+      : (((await supabase
+          .from('comments')
+          .select('author_id, created_at')
+          .in('annotation_id', annotationIds)
+          .order('created_at', { ascending: false })) as unknown) as MultiResult<
+          Pick<CommentRow, 'author_id' | 'created_at'>
+        >);
+
+  if (commentsError) {
+    return toQueryFailure(commentsError, 'Unable to load project comments.');
+  }
+
+  const { data: reviewRounds, error: reviewRoundsError } = ((await supabase
+    .from('review_rounds')
+    .select('created_by, created_at')
+    .in('review_item_id', reviewItemIds)
+    .order('created_at', { ascending: false })) as unknown) as MultiResult<
+    Pick<ReviewRoundRow, 'created_by' | 'created_at'>
+  >;
+
+  if (reviewRoundsError) {
+    return toQueryFailure(reviewRoundsError, 'Unable to load project review rounds.');
+  }
+
+  const { data: reviewerNotes, error: reviewerNotesError } = ((await supabase
+    .from('reviewer_notes')
+    .select('updated_by, updated_at')
+    .in('review_item_id', reviewItemIds)
+    .order('updated_at', { ascending: false })) as unknown) as MultiResult<
+    Pick<ReviewerNoteRow, 'updated_by' | 'updated_at'>
+  >;
+
+  if (reviewerNotesError) {
+    return toQueryFailure(reviewerNotesError, 'Unable to load reviewer notes.');
+  }
+
+  const latestActivity = [
+    ...(comments ?? []).map((comment) => ({
+      reviewerId: comment.author_id,
+      occurredAt: comment.created_at
+    })),
+    ...(annotations ?? []).map((annotation) => ({
+      reviewerId: annotation.author_id,
+      occurredAt: annotation.created_at
+    })),
+    ...(reviewRounds ?? []).map((reviewRound) => ({
+      reviewerId: reviewRound.created_by,
+      occurredAt: reviewRound.created_at
+    })),
+    ...(reviewerNotes ?? []).map((reviewerNote) => ({
+      reviewerId: reviewerNote.updated_by,
+      occurredAt: reviewerNote.updated_at
+    }))
+  ]
+    .filter((activity) => activity.reviewerId && activity.occurredAt)
+    .sort((left, right) => new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime())[0];
+
+  if (!latestActivity) {
+    return null;
+  }
+
+  return loadReviewerDisplayName(supabase, latestActivity.reviewerId);
+}
+
+function normalizeAnnotationViewport(viewport: string): keyof ProjectViewportReviewCounts | null {
+  const normalizedViewport = viewport.trim().toLowerCase();
+
+  if (normalizedViewport.includes('mobile')) {
+    return 'mobile';
+  }
+
+  if (normalizedViewport.includes('tablet')) {
+    return 'tablet';
+  }
+
+  if (normalizedViewport.includes('desktop')) {
+    return 'desktop';
+  }
+
+  return null;
+}
+
+async function loadProjectViewportReviewCounts(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  reviewItemIds: string[]
+) {
+  const emptyCounts: ProjectViewportReviewCounts = {
+    desktop: 0,
+    tablet: 0,
+    mobile: 0
+  };
+
+  if (reviewItemIds.length === 0) {
+    return emptyCounts;
+  }
+
+  const { data, error } = ((await supabase
+    .from('annotations')
+    .select('viewport')
+    .in('review_item_id', reviewItemIds)
+    .eq('status', 'active')) as unknown) as MultiResult<Pick<AnnotationRow, 'viewport'>>;
+
+  if (error) {
+    return toQueryFailure(error, 'Unable to load viewport review counts.');
+  }
+
+  for (const annotation of data ?? []) {
+    const viewportKey = normalizeAnnotationViewport(annotation.viewport);
+
+    if (!viewportKey) {
+      continue;
+    }
+
+    emptyCounts[viewportKey] += 1;
+  }
+
+  return emptyCounts;
 }
 
 export async function listProjects(filters: ProjectListFilters) {
@@ -234,8 +414,31 @@ export async function getProject(projectId: string) {
     return toQueryFailure(reviewItemsError, 'Unable to load project review items.');
   }
 
+  const reviewerName = await loadProjectReviewerName(
+    auth.supabase,
+    (reviewItems ?? []).map((reviewItem) => reviewItem.id)
+  );
+
+  if (reviewerName && typeof reviewerName === 'object' && 'error' in reviewerName) {
+    return reviewerName;
+  }
+
+  const viewportReviewCounts = await loadProjectViewportReviewCounts(
+    auth.supabase,
+    (reviewItems ?? []).map((reviewItem) => reviewItem.id)
+  );
+
+  if (viewportReviewCounts && typeof viewportReviewCounts === 'object' && 'error' in viewportReviewCounts) {
+    return viewportReviewCounts;
+  }
+
   return {
-    project: toProjectRecord(project, reviewItems ?? [])
+    project: toProjectRecord(
+      project,
+      reviewItems ?? [],
+      reviewerName ?? null,
+      viewportReviewCounts
+    )
   };
 }
 
